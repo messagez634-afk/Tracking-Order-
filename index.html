@@ -82,7 +82,7 @@
 <div class="header">
     <div>
         <h1 style="font-size: 0.9rem; margin:0; letter-spacing: 1px;">ASH BAKES SYSTEM</h1>
-        <span id="currentUserDisplay" class="user-badge">Officer: Loading...</span>
+        <span id="currentUserDisplay" class="user-badge">Oprator: Loading...</span>
     </div>
     <div class="nav-icons">
         <button onclick="showView('home')">🏠</button>
@@ -127,7 +127,7 @@
 
     <div id="settingsView" class="view">
         <div class="card">
-            <button class="btn btn-outline" onclick="changeUser()">👤 Re-register Officer Name</button>
+            <button class="btn btn-outline" onclick="changeUser()">👤 Re-register Oprator Name</button>
         </div>
         <div class="card">
             <h3 id="menuTitle">📦 Master Menu Setup</h3>
@@ -195,72 +195,108 @@
             // Agar naam nahi hai toh pop-up dikhao
             document.getElementById('regOverlay').style.display = 'flex';
         } else {
-            document.getElementById('currentUserDisplay').innerText = "Officer: " + user;
+            document.getElementById('currentUserDisplay').innerText = "Oprator: " + user;
         }
     }
 
 function submitRegistration() {
-    let name = document.getElementById('regNameInput').value;
+    let nameInput = document.getElementById('regNameInput');
+    let name = nameInput.value;
     
     if (name && name.trim().length >= 2) {
         let finalName = name.trim().toUpperCase();
         localStorage.setItem('app_user_name', finalName);
         document.getElementById('regOverlay').style.display = 'none';
-        document.getElementById('currentUserDisplay').innerText = "Officer: " + finalName;
+        document.getElementById('currentUserDisplay').innerText = "Oprator: " + finalName;
+        renderHistory();
     } else {
-        // Purana alert hata kar ab hum apna professional modal kholenge
-        openModal({
-            title: 'Access Denied',
-            msg: 'Security Alert: Please enter a valid name to authorize access.',
-            icon: '🚫',
-            btnText: 'Try Again',
-            btnClass: 'btn btn-blue',
-            onConfirm: () => {
-                // Jab user "Try Again" dabayega toh wapas login box dikhega
-                document.getElementById('regOverlay').style.display = 'flex';
-            }
-        });
+        // Aapke code mein showModal function hai, openModal nahi
+        showModal(
+            'Access Denied',
+            'Security Alert: Please enter a valid name to authorize access.',
+            '🚫',
+            () => { document.getElementById('regOverlay').style.display = 'flex'; }
+        );
     }
 }
 
 
 
-    function changeUser() {
-        localStorage.removeItem('app_user_name');
-        location.reload();
-    }
 
-    function saveOrder() {
-        const t = document.getElementById('tkt').value, n = document.getElementById('name').value;
-        if(!t || !n || !basket.length) return showModal("Incomplete", "Details required!", "❌", null, false);
-        
-        const currentUser = localStorage.getItem('app_user_name');
-        const timestamp = new Date().toLocaleString();
-        
-        let sub = basket.reduce((a,b)=>a+b.total,0);
-        let orderObj = { 
-            tkt:t, name:n, phone:document.getElementById('phone').value, 
-            items:[...basket], total: sub*1.05, 
-            date: document.getElementById('dateSearch').value, 
-            id: editingOrderId || Date.now(), 
-            isPicked: false,
-            lastEditedBy: currentUser,
-            lastEditedTime: timestamp
-        };
-
-        if(editingOrderId) {
-            let idx = orders.findIndex(o => o.id === editingOrderId);
-            orders[idx] = orderObj;
+function changeUser() {
+    const m = document.getElementById('customModal');
+    const title = document.getElementById('modalTitle');
+    const msg = document.getElementById('modalMsg');
+    
+    title.innerText = "Rename Operator";
+    msg.innerHTML = `
+        <p>Enter new name (ZAMIR / SAMIR):</p>
+        <input type="text" id="newNameInput" class="reg-input" style="color:black; border:2px solid var(--info);" placeholder="NEW NAME">
+    `;
+    
+    m.style.display = 'flex';
+    
+    document.getElementById('modalConfirm').onclick = () => {
+        let n = document.getElementById('newNameInput').value;
+        if(n && n.trim().length >= 2) {
+            let finalName = n.trim().toUpperCase();
+            
+            // 1. Local storage update karein
+            localStorage.setItem('app_user_name', finalName);
+            
+            // 2. Header ka naam turant badlein
+            document.getElementById('currentUserDisplay').innerText = "Oprator: " + finalName;
+            
+            m.style.display = 'none';
+            
+            // 3. History ko refresh karein taaki "Last Edited" update dikhe
+            renderHistory();
         } else {
-            orders.unshift(orderObj);
+            alert("Please enter a valid name!");
         }
+    };
+    
+    document.getElementById('modalCancel').onclick = () => { m.style.display = 'none'; };
+}
 
-        localStorage.setItem('oman_v10_orders', JSON.stringify(orders));
-        syncToFirebase();
-        resetForm();
-        showView('history'); 
-        renderHistory();
+
+function saveOrder() {
+    const t = document.getElementById('tkt').value, n = document.getElementById('name').value;
+    if(!t || !n || !basket.length) return showModal("Incomplete", "Details required!", "❌", null, false);
+    
+    // Naya naam uthao
+    const currentUser = localStorage.getItem('app_user_name');
+    const timestamp = new Date().toLocaleString();
+    
+    let sub = basket.reduce((a,b)=>a+b.total,0);
+    let orderObj = { 
+        tkt:t, name:n, phone:document.getElementById('phone').value, 
+        items:[...basket], total: sub*1.05, 
+        date: document.getElementById('dateSearch').value, 
+        id: editingOrderId || Date.now(), 
+        isPicked: false, // Default false, lekin edit mein purana status rakh sakte hain
+        lastEditedBy: currentUser, // Isse naam save hoga
+        lastEditedTime: timestamp
+    };
+
+    if(editingOrderId) {
+        let idx = orders.findIndex(o => o.id === editingOrderId);
+        // Agar edit ho raha hai, toh puraani status (Picked/Unpicked) barkarar rakhein
+        orderObj.isPicked = orders[idx].isPicked;
+        orders[idx] = orderObj;
+    } else {
+        orders.unshift(orderObj);
     }
+
+    localStorage.setItem('oman_v10_orders', JSON.stringify(orders));
+    syncToFirebase();
+    resetForm();
+    showView('history'); 
+    renderHistory();
+}
+
+
+
 
     function renderHistory() {
         const dt = document.getElementById('dateSearch').value;
@@ -271,9 +307,20 @@ function submitRegistration() {
                 <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#64748b;"><b>TKT #${x.tkt}</b> <span>${x.date}</span></div>
                 <div style="font-weight:bold; font-size:1rem; margin:5px 0;">${x.name} <small>📞${x.phone}</small></div>
                 <div class="receipt-mini">
-                    ${x.items.map(i => `<div>${i.name} x${i.qty} <span style="float:right;">${i.total.toFixed(3)}</span></div>`).join('')}
-                    <div style="border-top:1px dashed #ccc; margin-top:5px; font-weight:bold; color:var(--success);">TOTAL: ${x.total.toFixed(3)} OMR</div>
-                </div>
+    ${x.items.map(i => `<div>${i.name} x${i.qty} <span style="float:right;">${i.total.toFixed(3)}</span></div>`).join('')}
+    
+    <div style="border-top:1px solid #eee; margin-top:5px; padding-top:5px; color:#64748b; font-size:0.75rem;">
+        Subtotal: <span style="float:right;">${(x.total / 1.05).toFixed(3)} OMR</span>
+    </div>
+    <div style="color:#64748b; font-size:0.75rem;">
+        VAT (5%): <span style="float:right;">${(x.total - (x.total / 1.05)).toFixed(3)} OMR</span>
+    </div>
+    
+    <div style="border-top:1px dashed #ccc; margin-top:5px; padding-top:5px; font-weight:bold; color:var(--success);">
+        TOTAL (INC. VAT): <span style="float:right;">${x.total.toFixed(3)} OMR</span>
+    </div>
+</div>
+
                 <span class="edit-info">✍️ Last Edited By: ${x.lastEditedBy || 'System'} at ${x.lastEditedTime || '-'}</span>
                 
                 <div style="display:flex; gap:8px; margin-top:12px;">
@@ -283,15 +330,34 @@ function submitRegistration() {
                 </div>
             </div>`).join('');
     }
-
+    
     function addBasket() {
-        let s = document.getElementById('itemSel'), n = s.value, q = parseInt(document.getElementById('qty').value);
-        if(!n || isNaN(q)) return;
+        let s = document.getElementById('itemSel'), 
+            n = s.value, 
+            qInput = document.getElementById('qty').value;
+        
+        let q = parseInt(qInput);
+        if(!n || isNaN(q) || q <= 0) return;
+        
         let p = parseFloat(s.options[s.selectedIndex].getAttribute('data-p'));
-        basket.push({name:n, price:p, qty:q, total:q*p});
+        
+        // --- NAYA LOGIC: Check karo kya ye item basket mein pehle se hai? ---
+        let existingItemIndex = basket.findIndex(item => item.name === n);
+        
+        if (existingItemIndex !== -1) {
+            // Agar mil gaya, toh purani qty mein naya qty jod do
+            basket[existingItemIndex].qty += q;
+            // Naya total calculate karo
+            basket[existingItemIndex].total = basket[existingItemIndex].qty * basket[existingItemIndex].price;
+        } else {
+            // Agar naya item hai, toh pehle ki tarah naya object bana kar add karo
+            basket.push({name:n, price:p, qty:q, total:q*p});
+        }
+        
         renderBasket();
-        document.getElementById('qty').value = '';
+        document.getElementById('qty').value = ''; // Qty input khaali karo
     }
+
 
     function renderBasket() {
         document.getElementById('basketArea').innerHTML = basket.map((x,i) => `
@@ -335,17 +401,34 @@ function submitRegistration() {
         if(confirm("Delete product?")) { menu.splice(i,1); syncToFirebase(); }
     }
 
-    function toggleP(id) { 
-        let i = orders.findIndex(x => x.id === id); 
-        orders[i].isPicked = !orders[i].isPicked; 
-        orders[i].lastEditedBy = localStorage.getItem('app_user_name');
-        orders[i].lastEditedTime = new Date().toLocaleString();
-        syncToFirebase(); 
-    }
+function toggleP(id) { 
+    let i = orders.findIndex(x => x.id === id); 
+    
+    // Status badlo
+    orders[i].isPicked = !orders[i].isPicked; 
+    
+    // Tracking update karo (Kisne Pickup kiya)
+    orders[i].lastEditedBy = localStorage.getItem('app_user_name');
+    orders[i].lastEditedTime = new Date().toLocaleString();
+    
+    syncToFirebase(); 
+    renderHistory(); // Turant history refresh karein
+}
 
-    function delO(id) {
-        if(confirm("Delete this order record?")) { orders = orders.filter(x => x.id !== id); syncToFirebase(); }
-    }
+
+function delO(id) {
+    showModal(
+        "Delete Order?", 
+        "Are you sure you want to remove this record? This action cannot be undone.", 
+        "🗑️", 
+        () => {
+            orders = orders.filter(x => x.id !== id); 
+            syncToFirebase();
+            renderHistory();
+        }
+    );
+}
+
 
     function editOrder(id) {
         let order = orders.find(o => o.id === id);
