@@ -81,7 +81,7 @@
 
 <div class="header">
     <div>
-        <h1 style="font-size: 0.9rem; margin:0; letter-spacing: 1px;">ASH BAKES SYSTEM</h1>
+        <h1 style="font-size: 0.9rem; margin:0; letter-spacing: 1px;">ASH BAKES ORDERS</h1>
         <span id="currentUserDisplay" class="user-badge">Oprator: Loading...</span>
     </div>
     <div class="nav-icons">
@@ -94,10 +94,10 @@
 <div class="container">
     <div id="homeView" class="view active">
         <div class="card">
-            <h2 id="billingTitle" style="margin-top:0; font-size:1.1rem; color:var(--primary);">📝 Create Professional Bill</h2>
+            <h2 id="billingTitle" style="margin-top:0; font-size:1.1rem; color:var(--primary);">📝 Create Ticket No.</h2>
             <div style="display:flex; gap:10px;">
-                <input type="number" id="tkt" placeholder="TKT No">
-                <button onclick="autoTkt()" style="height:48px; padding:0 15px; border-radius:12px; border:1.5px solid var(--info); color:var(--info); background:white; font-weight:bold;">Auto</button>
+                <input type="number" id="Ticket" placeholder="Ticket No">
+                <button onclick="autoTicket()" style="height:48px; padding:0 15px; border-radius:12px; border:1.5px solid var(--info); color:var(--info); background:white; font-weight:bold;">Auto</button>
             </div>
             <input type="text" id="name" placeholder="Customer Name">
             <input type="number" id="phone" placeholder="Mobile Number">
@@ -130,10 +130,10 @@
             <button class="btn btn-outline" onclick="changeUser()">👤 Re-register Oprator Name</button>
         </div>
         <div class="card">
-            <h3 id="menuTitle">📦 Master Menu Setup</h3>
+            <h3 id="menuTitle">📦 Menu Setup</h3>
             <input type="text" id="mItem" placeholder="Item Name">
             <input type="number" id="mPrice" step="0.001" placeholder="Price (OMR)">
-            <button class="btn btn-blue" id="menuActionBtn" onclick="saveMaster()">Save to Master</button>
+            <button class="btn btn-blue" id="menuActionBtn" onclick="saveMaster()">Save to Manu</button>
         </div>
         <div id="masterArea"></div>
     </div>
@@ -261,7 +261,7 @@ function changeUser() {
 
 
 function saveOrder() {
-    const t = document.getElementById('tkt').value, n = document.getElementById('name').value;
+    const t = document.getElementById('Ticket').value, n = document.getElementById('name').value;
     if(!t || !n || !basket.length) return showModal("Incomplete", "Details required!", "❌", null, false);
     
     // Naya naam uthao
@@ -270,7 +270,7 @@ function saveOrder() {
     
     let sub = basket.reduce((a,b)=>a+b.total,0);
     let orderObj = { 
-        tkt:t, name:n, phone:document.getElementById('phone').value, 
+        Ticket:t, name:n, phone:document.getElementById('phone').value, 
         items:[...basket], total: sub*1.05, 
         date: document.getElementById('dateSearch').value, 
         id: editingOrderId || Date.now(), 
@@ -304,7 +304,7 @@ function saveOrder() {
 
         document.getElementById('historyData').innerHTML = filtered.map(x => `
             <div class="card" style="border-left: 8px solid ${x.isPicked ? 'var(--success)' : 'var(--accent)'};">
-                <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#64748b;"><b>TKT #${x.tkt}</b> <span>${x.date}</span></div>
+                <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#64748b;"><b>Ticket No.${x.Ticket}</b> <span>${x.date}</span></div>
                 <div style="font-weight:bold; font-size:1rem; margin:5px 0;">${x.name} <small>📞${x.phone}</small></div>
                 <div class="receipt-mini">
     ${x.items.map(i => `<div>${i.name} x${i.qty} <span style="float:right;">${i.total.toFixed(3)}</span></div>`).join('')}
@@ -389,7 +389,7 @@ function saveOrder() {
         sel.innerHTML = '<option value="">Choose Product...</option>' + menu.map(it => `<option value="${it.name}" data-p="${it.price}">${it.name}</option>`).join('');
     }
 
-    function editMenuItem(i) {
+        function editMenuItem(i) {
         editingMenuItemIdx = i;
         document.getElementById('mItem').value = menu[i].name;
         document.getElementById('mPrice').value = menu[i].price;
@@ -398,7 +398,18 @@ function saveOrder() {
     }
 
     function delM(i) {
-        if(confirm("Delete product?")) { menu.splice(i,1); syncToFirebase(); }
+        // Professional Modal ka istemal
+        showModal(
+            "Delete Product?", 
+            `Do you want to remove "${menu[i].name}" from the menu?`, 
+            "🗑️", 
+            () => {
+                // Agar user 'Confirm' dabaye tabhi delete hoga
+                menu.splice(i, 1); 
+                syncToFirebase();
+                renderMenu(); // List ko turant update karne ke liye
+            }
+        );
     }
 
 function toggleP(id) { 
@@ -419,7 +430,7 @@ function toggleP(id) {
 function delO(id) {
     showModal(
         "Delete Order?", 
-        "Are you sure you want to remove this record? This action cannot be undone.", 
+        "This Order record will be removed.", 
         "🗑️", 
         () => {
             orders = orders.filter(x => x.id !== id); 
@@ -433,21 +444,21 @@ function delO(id) {
     function editOrder(id) {
         let order = orders.find(o => o.id === id);
         editingOrderId = id;
-        document.getElementById('tkt').value = order.tkt;
+        document.getElementById('Ticket').value = order.Ticket;
         document.getElementById('name').value = order.name;
         document.getElementById('phone').value = order.phone;
         basket = [...order.items];
         renderBasket();
         showView('home');
-        document.getElementById('billingTitle').innerText = "📝 Authorizing Changes: #" + order.tkt;
+        document.getElementById('billingTitle').innerText = "📝 Authorizing Changes: no." + order.Ticket;
         document.getElementById('saveOrderBtn').innerText = "Update Authorized Order";
         document.getElementById('cancelEditBtn').style.display = "block";
     }
 
     function resetForm() {
         editingOrderId = null; basket = []; renderBasket();
-        ['tkt','name','phone'].forEach(id => document.getElementById(id).value = '');
-        document.getElementById('billingTitle').innerText = "📝 Create Professional Bill";
+        ['Ticket','name','phone'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('billingTitle').innerText = "📝 Create Ticket No.";
         document.getElementById('saveOrderBtn').innerText = "✅ Save & Sync Order";
         document.getElementById('cancelEditBtn').style.display = "none";
     }
@@ -457,9 +468,9 @@ function delO(id) {
         document.getElementById(v + 'View').classList.add('active');
     }
 
-    function autoTkt() {
-        let max = 0; orders.forEach(o => { if(parseInt(o.tkt) > max) max = parseInt(o.tkt); });
-        document.getElementById('tkt').value = max + 1;
+    function autoTicket() {
+        let max = 0; orders.forEach(o => { if(parseInt(o.Ticket) > max) max = parseInt(o.Ticket); });
+        document.getElementById('Ticket').value = max + 1;
     }
 
     function showModal(title, msg, icon, onConfirm) {
