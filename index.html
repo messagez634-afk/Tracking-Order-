@@ -105,13 +105,16 @@
             </div>
             <input type="text" id="name" placeholder="Customer Name">
             <input type="number" id="phone" placeholder="Mobile Number">
-            
-            <div style="background: #fff5f5; border: 1px solid #feb2b2; padding: 12px; border-radius: 12px; margin-bottom: 12px;">
-    <label style="display: block; font-size: 0.75rem; font-weight: bold; color: var(--accent); margin-bottom: 5px;">
-        🕒 SET PICKUP TIMING (AM/PM)
+            <div style="background: #fdf2f2; border: 1.5px solid #fecaca; padding: 12px; border-radius: 15px; margin-bottom: 12px;">
+    <label style="display: flex; align-items: center; gap: 5px; font-size: 0.8rem; font-weight: bold; color: var(--accent); margin-bottom: 8px;">
+        📅 PICKUP DATE & TIME
     </label>
-    <input type="time" id="pickupTime" style="margin-bottom: 0; border-color: #feb2b2; font-weight: bold; color: var(--primary);">
+    <div style="display: flex; gap: 5px;">
+        <input type="date" id="pickupDate" style="flex: 1; margin-bottom: 0; border: 1px solid #fecaca;">
+        <input type="time" id="pickupTime" style="flex: 1; margin-bottom: 0; border: 1px solid #fecaca;">
+    </div>
 </div>
+
 
 
 
@@ -206,7 +209,7 @@
         let user = localStorage.getItem('app_user_name');
         if (!user) {
             // Agar naam nahi hai toh pop-up dikhao
-            document.getElementById('regOverlay').style.display = 'flex';
+            document.getElementByIda('regOverlay').style.display = 'flex';
         } else {
             document.getElementById('currentUserDisplay').innerText = "Oprator: " + user;
         }
@@ -272,21 +275,34 @@ function changeUser() {
     document.getElementById('modalCancel').onclick = () => { m.style.display = 'none'; };
 }
 
-
+// 1. Save Order mein Pickup Date logic
 function saveOrder() {
-    const t = document.getElementById('Ticket').value, n = document.getElementById('name').value;
-    if(!t || !n || !basket.length) return showModal("Incomplete", "Details required!", "❌", null, false);
+    const t = document.getElementById('Ticket').value;
+    const n = document.getElementById('name').value;
+    
+    if(!t || !n || !basket.length) {
+        return showModal("Incomplete", "Ticket No, Name and Items are required!", "❌", null, false);
+    }
     
     const currentUser = localStorage.getItem('app_user_name');
     const timestamp = new Date().toLocaleString();
     
-    let sub = basket.reduce((a,b)=>a+b.total,0);
+    // Pickup Date uthao, agar khali hai toh aaj ki date lo
+    const pDate = document.getElementById('pickupDate').value || new Date().toISOString().split('T')[0];
+    const pTime = document.getElementById('pickupTime').value;
+
+    let sub = basket.reduce((a,b) => a + b.total, 0);
+    
     let orderObj = { 
-        Ticket:t, name:n, 
-        phone:document.getElementById('phone').value, 
-        pickup: document.getElementById('pickupTime').value, // <-- Naya field
-        items:[...basket], total: sub*1.05, 
-        date: document.getElementById('dateSearch').value, 
+        Ticket: t, 
+        name: n, 
+        phone: document.getElementById('phone').value, 
+        pickupDate: pDate, 
+        pickup: pTime,
+        items: [...basket], 
+        total: sub * 1.05, 
+        // YE SABSE ZAROORI LINE HAI:
+        date: pDate, // Ab order usi date ke filter mein dikhega jo pickup date hai
         id: editingOrderId || Date.now(), 
         isPicked: false,
         lastEditedBy: currentUser,
@@ -304,9 +320,33 @@ function saveOrder() {
     localStorage.setItem('oman_v10_orders', JSON.stringify(orders));
     syncToFirebase();
     resetForm();
+    
+    // Save karne ke baad usi date par le jao jo select ki thi
+    document.getElementById('dateSearch').value = pDate;
     showView('history'); 
     renderHistory();
 }
+
+
+// 2. Countdown mein Days, Hours, Mins, Secs
+function getCountdown(pickupTime, pickupDate) {
+    if (!pickupTime) return "Not Set";
+    
+    // Agar date nahi di gayi toh order ki date use karein
+    const target = new Date(pickupDate + 'T' + pickupTime);
+    const now = new Date();
+    const diff = target - now;
+
+    if (diff <= 0) return `<span style="color:var(--accent); font-weight:bold;">⚠️ Time Over!</span>`;
+
+    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+    return `⏳ ${d > 0 ? d + 'd ' : ''}${h}h ${m}m ${s}s left`;
+}
+
 
 
 
@@ -346,46 +386,46 @@ function renderHistory() {
         <div class="card" style="border-left: 8px solid ${x.isPicked ? 'var(--success)' : 'var(--accent)'};">
             <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:#64748b;">
                 <b>Ticket No.${x.Ticket}</b> 
-                <span>${x.date}</span>
+                <span>Order Date: ${x.date}</span>
             </div>
             
-            <div style="display:flex; justify-content:space-between; align-items: flex-start; margin:5px 0;">
-                <div style="font-weight:bold; font-size:1rem;">${x.name} <small>📞${x.phone}</small></div>
+            <div style="display:flex; justify-content:space-between; align-items: flex-start; margin:8px 0;">
+                <div>
+                    <div style="font-weight:bold; font-size:1.1rem; color:var(--primary);">${x.name}</div>
+                    <div style="font-size:0.85rem; color:#64748b;">📞 ${x.phone || 'No Phone'}</div>
+                </div>
                 
                 <div style="text-align: right;">
-                    <div style="font-size:0.85rem; color:var(--accent); font-weight:bold;">
-                        🕒 Pickup: ${formatTime(x.pickup)}
+                    <div style="font-size:0.85rem; color:var(--accent); font-weight:bold; background:#fff5f5; padding:4px 8px; border-radius:6px; border:1px solid #fecaca;">
+                        📅 ${x.pickupDate || x.date} | 🕒 ${formatAMPM(x.pickup)}
                     </div>
-                    <div id="timer-${x.id}" style="font-size:0.75rem; color:#64748b; background:#f8fafc; padding:2px 6px; border-radius:4px; margin-top:3px; border:1px solid #eee;">
-                        ${x.isPicked ? '✅ Order Picked' : getCountdown(x.pickup, x.date)}
+                    
+                    <div id="timer-${x.id}" style="font-size:0.75rem; color:#1e293b; background:#f1f5f9; padding:4px 8px; border-radius:6px; margin-top:5px; border:1px solid #cbd5e1; display: inline-block; font-family: monospace;">
+                        ${x.isPicked ? '✅ Order Picked' : getCountdown(x.pickup, x.pickupDate || x.date)}
                     </div>
                 </div>
             </div>
 
             <div class="receipt-mini">
-                ${x.items.map(i => `<div>${i.name} x${i.qty} <span style="float:right;">${i.total.toFixed(3)}</span></div>`).join('')}
+                ${x.items.map(i => `<div style="display:flex; justify-content:space-between;"><span>${i.name} x${i.qty}</span> <span>${i.total.toFixed(3)}</span></div>`).join('')}
                 
-                <div style="border-top:1px solid #eee; margin-top:5px; padding-top:5px; color:#64748b; font-size:0.75rem;">
-                    Subtotal: <span style="float:right;">${(x.total / 1.05).toFixed(3)} OMR</span>
-                </div>
-                <div style="color:#64748b; font-size:0.75rem;">
-                    VAT (5%): <span style="float:right;">${(x.total - (x.total / 1.05)).toFixed(3)} OMR</span>
-                </div>
-                
-                <div style="border-top:1px dashed #ccc; margin-top:5px; padding-top:5px; font-weight:bold; color:var(--success);">
-                    TOTAL (INC. VAT): <span style="float:right;">${x.total.toFixed(3)} OMR</span>
+                <div style="border-top:1px dashed #ccc; margin-top:8px; padding-top:5px; font-weight:bold; color:var(--success); display:flex; justify-content:space-between;">
+                    <span>TOTAL (INC. VAT):</span> <span>${x.total.toFixed(3)} OMR</span>
                 </div>
             </div>
 
             <span class="edit-info">✍️ Last Edited By: ${x.lastEditedBy || 'System'} at ${x.lastEditedTime || '-'}</span>
             
             <div style="display:flex; gap:8px; margin-top:12px;">
-                <button onclick="toggleP(${x.id})" class="btn" style="flex:1.5; padding:8px; font-size:0.8rem; background:${x.isPicked?'#e8f5e9':'#f8fafc'}; color:${x.isPicked?'#10b981':'#64748b'}; border:1px solid #ddd;">${x.isPicked?'✓ Picked':'Mark Pickup'}</button>
-                <button onclick="editOrder(${x.id})" class="btn btn-outline" style="flex:1; padding:8px; font-size:0.8rem;">Edit</button>
-                <button onclick="delO(${x.id})" style="border:none; background:none; color:red; padding:5px;">✕</button>
+                <button onclick="toggleP(${x.id})" class="btn" style="flex:1.5; padding:10px; font-size:0.85rem; background:${x.isPicked?'#e8f5e9':'#f8fafc'}; color:${x.isPicked?'#10b981':'#64748b'}; border:1px solid #ddd;">
+                    ${x.isPicked ? '✓ Picked' : 'Mark Pickup'}
+                </button>
+                <button onclick="editOrder(${x.id})" class="btn btn-outline" style="flex:1; padding:10px; font-size:0.85rem;">Edit</button>
+                <button onclick="delO(${x.id})" style="border:none; background:none; color:red; padding:10px; font-weight:bold;">✕</button>
             </div>
         </div>`).join('');
 }
+
 
 // 3. Har 1 second mein timers update karne ka logic (Script ke end mein daalein)
 setInterval(() => {
@@ -527,19 +567,32 @@ function delO(id) {
     }
 
 function resetForm() {
+    // 1. Purani editing ID aur basket (saaman ki list) ko khali karein
     editingOrderId = null; 
     basket = []; 
     renderBasket();
-    
-    // Pickup time ko bhi yahan list mein add kiya gaya hai
-    ['Ticket','name','phone','pickupTime'].forEach(id => {
-        if(document.getElementById(id)) document.getElementById(id).value = '';
+
+    // 2. Sabhi input boxes ko mitaein (Ticket, Name, Phone, Time)
+    ['Ticket', 'name', 'phone', 'pickupTime'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
     });
-    
+
+    // 3. Pickup Date ko automatic AAJ (Today) ki date par set karein
+    // Isse aapko baar-baar date nahi daalni padegi
+    const today = new Date().toISOString().split('T')[0];
+    const pDateInput = document.getElementById('pickupDate');
+    if (pDateInput) {
+        pDateInput.value = today;
+    }
+
+    // 4. Buttons aur Title ko wapas naye order jaisa karein
     document.getElementById('billingTitle').innerText = "📝 Create Ticket No.";
     document.getElementById('saveOrderBtn').innerText = "✅ Save & Sync Order";
-    document.getElementById('cancelEditBtn').style.display = "none";
+    const cancelBtn = document.getElementById('cancelEditBtn');
+    if (cancelBtn) cancelBtn.style.display = "none";
 }
+
 
     function showView(v) {
         document.querySelectorAll('.view').forEach(e => e.classList.remove('active'));
@@ -560,46 +613,53 @@ function resetForm() {
         document.getElementById('modalCancel').onclick = () => { m.style.display = 'none'; };
     }
     
-    function formatAMPM(time) {
+
+// 1. Time ko AM/PM mein badalne ke liye
+function formatAMPM(time) {
     if (!time) return "Not Set";
     let [hours, minutes] = time.split(':');
     let ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12; // 0 ko 12 banao
+    hours = hours % 12 || 12;
     return hours + ':' + minutes + ' ' + ampm;
 }
 
-function getCountdown(pickupTime, orderDate) {
-    if (!pickupTime) return "";
+// 2. Countdown calculate karne ke liye (Days, Hours, Minutes, Seconds)
+function getCountdown(pickupTime, pickupDate) {
+    if (!pickupTime) return "Timer Not Set";
     
-    // Pickup ki date aur time ko milao
-    const target = new Date(orderDate + 'T' + pickupTime);
+    const target = new Date((pickupDate || new Date().toISOString().split('T')[0]) + 'T' + pickupTime);
     const now = new Date();
     const diff = target - now;
 
-    if (diff <= 0) return `<span style="color:red; font-weight:bold;">⚠️ Time Over!</span>`;
+    if (diff <= 0) return `<span style="color:var(--accent); font-weight:bold;">⚠️ Time Over!</span>`;
 
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
+    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const s = Math.floor((diff % (1000 * 60)) / 1000);
 
-    return `⏳ ${h}h ${m}m ${s}s left`;
+    let countdownStr = "⏳ ";
+    if (d > 0) countdownStr += d + "d "; // Sirf tab dikhao jab 1 din se upar ho
+    countdownStr += `${h}h ${m}m ${s}s left`;
+    
+    return countdownStr;
 }
 
-// Har 1 second mein timers update honge
+// 3. Live Update: Har 1 second mein screen par timer badlega
 setInterval(() => {
-    const dt = document.getElementById('dateSearch').value;
-    const filtered = orders.filter(x => x.date === dt && !x.isPicked && x.pickup);
-    
-    filtered.forEach(x => {
+    // Sirf un orders ko refresh karo jo screen par dikh rahe hain aur picked nahi hain
+    orders.filter(x => !x.isPicked && x.pickup).forEach(x => {
         const timerEl = document.getElementById(`timer-${x.id}`);
         if (timerEl) {
-            timerEl.innerHTML = getCountdown(x.pickup, x.date);
+            timerEl.innerHTML = getCountdown(x.pickup, x.pickupDate || x.date);
         }
     });
 }, 1000);
+
 
     
 </script>
 </body>
 </html>
+
+    
